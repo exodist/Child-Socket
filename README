@@ -1,0 +1,75 @@
+NAME
+    Child::Socket - Child with socket support.
+
+DESCRIPTION
+    Lets you create a Child object, disconnect from it, and reconnect later
+    in the same or different process.
+
+REQUIREMENT NOTE
+    Requires UNIX socket support.
+
+SYNOPSIS
+  BASIC
+        use Child::Socket;
+
+        # Build with IPC
+        my $child = Child::Socket->new(sub {
+            my $self = shift;
+            $self->say("message1");
+            my $reply = $self->read();
+        }, socket => 1 );
+
+        my $message1 = $child1->read();
+        $child->say("reply");
+
+CONSTRUCTOR
+    $class->new( sub { ... } )
+    $class->new( sub { ... }, pipe => 1 )
+    $class->new( sub { ... }, socket => 1 )
+    $class->new( sub { ... }, socket => $file )
+        Create a new Child object. Does not start the child.
+
+    $class->existing( $socket_filename )
+        Create a new instance that connects to an existing child.
+
+OBJECT METHODS
+    Inherits everything from Child.
+
+    $child->connect( $timeout )
+        In parent process this will attempt to connect to the child unless
+        already connected. Throws an exception if the socket file does not
+        exist after the timeout expires. Once connected, the child PID will
+        be returned.
+
+        In the child process this will accept an incomming connection. This
+        will return undef if no incomming connection occurs before the
+        timeout expires.
+
+        NOTE: Only one connection can be maintained at a time. Will return
+        undef if already connected.
+
+    $child->disconnect()
+        Disconnects if connected.
+
+    $child->socket_file()
+        Get the socket file name.
+
+    $child->is_socket()
+        Check if this is a socket connection.
+
+    $child->is_pipe()
+        Check if this is a pipe connection.
+
+AUTHORS
+    Chad Granum exodist7@gmail.com
+
+COPYRIGHT
+    Copyright (C) 2010 Chad Granum
+
+    Child-Socket is free software; Standard perl licence.
+
+    Child-Socket is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the license for
+    more details.
+

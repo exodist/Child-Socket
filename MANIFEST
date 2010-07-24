@@ -1,0 +1,7 @@
+Build.PL
+lib/Child/Socket.pm
+MANIFEST			This list of files
+t/Pipe.t
+t/Socket.t
+README
+META.yml
