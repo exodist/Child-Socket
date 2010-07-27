@@ -1,5 +1,5 @@
 NAME
-    Child::Socket - Child with socket support.
+    Child::Socket - Socket based IPC plugin for Child
 
 DESCRIPTION
     Lets you create a Child object, disconnect from it, and reconnect later
@@ -9,56 +9,49 @@ REQUIREMENT NOTE
     Requires UNIX socket support.
 
 SYNOPSIS
-  BASIC
-        use Child::Socket;
+        use Child qw/child/;
 
-        # Build with IPC
-        my $child = Child::Socket->new(sub {
-            my $self = shift;
-            $self->say("message1");
-            my $reply = $self->read();
-        }, socket => 1 );
+        # Build with Socket IPC
+        my $proc = child {
+            my $parent = shift;
+            $parent->say("message1");
+            my $reply = $parent->read();
+        } socket => 1;
 
-        my $message1 = $child1->read();
-        $child->say("reply");
+        my $message1 = $proc->read();
+        $proc->say("reply");
 
-CONSTRUCTOR
-    $class->new( sub { ... } )
-    $class->new( sub { ... }, pipe => 1 )
-    $class->new( sub { ... }, socket => 1 )
-    $class->new( sub { ... }, socket => $file )
-        Create a new Child object. Does not start the child.
+DISCONNECTING AND RECONNECTING
+    sript1.pl:
 
-    $class->existing( $socket_filename )
-        Create a new instance that connects to an existing child.
+        #!/usr/bin/perl;
+        use Child qw/child/;
 
-OBJECT METHODS
-    Inherits everything from Child.
+        $proc = child {
+            my $parent = shift;
 
-    $child->connect( $timeout )
-        In parent process this will attempt to connect to the child unless
-        already connected. Throws an exception if the socket file does not
-        exist after the timeout expires. Once connected, the child PID will
-        be returned.
+            # detach will remove the child from the parents process group.
+            $parent->detach;
 
-        In the child process this will accept an incomming connection. This
-        will return undef if no incomming connection occurs before the
-        timeout expires.
+            $parent->disconnect;
 
-        NOTE: Only one connection can be maintained at a time. Will return
-        undef if already connected.
+            # $parent->connect accepts a client connection
+            # argument is timeout in seconds
+            $parent->connect(10);
 
-    $child->disconnect()
-        Disconnects if connected.
+            $parent->say( "Hi" );
+        } socket => '/tmp/my-socket';
 
-    $child->socket_file()
-        Get the socket file name.
+        $proc->disconnect;
 
-    $child->is_socket()
-        Check if this is a socket connection.
+    script2.pl:
 
-    $child->is_pipe()
-        Check if this is a pipe connection.
+        #!/usr/bin/perl;
+        use Child qw/proc_connect/;
+
+        my $proc = proc_connect( '/tmp/my-socket' );
+
+        my $msg = $proc->read; # "Hi\n"
 
 AUTHORS
     Chad Granum exodist7@gmail.com

@@ -7,123 +7,90 @@ our $CLASS = 'Child::Socket';
 
 require_ok( $CLASS );
 
-my $one = $CLASS->new( sub {
-    my $self = shift;
-    $self->say( "Have self" );
-    $self->say( "parent: " . $self->parent );
-    my $in = $self->read();
-    $self->say( $in );
+my $child = $CLASS->new( sub {
+    my $parent = shift;
+    $parent->say( "Have self" );
+    $parent->say( "parent: " . $parent->pid );
+    my $in = $parent->read();
+    $parent->say( $in );
 }, socket => 1 );
 
-$one->start;
-is( $one->read(), "Have self\n", "child has self" );
-is( $one->read(), "parent: $$\n", "child has parent PID" );
+my $proc = $child->start;
+is( $proc->read(), "Have self\n", "child has self" );
+is( $proc->read(), "parent: $$\n", "child has parent PID" );
 {
     local $SIG{ALRM} = sub { die "non-blocking timeout" };
     alarm 5;
-    ok( !$one->is_complete, "Not Complete" );
+    ok( !$proc->is_complete, "Not Complete" );
     alarm 0;
 }
-$one->say("XXX");
-is( $one->read(), "XXX\n", "Full IPC" );
-ok( $one->wait, "wait" );
-ok( $one->is_complete, "Complete" );
-is( $one->exit_status, 0, "Exit clean" );
+$proc->say("XXX");
+is( $proc->read(), "XXX\n", "Full IPC" );
+ok( $proc->wait, "wait" );
+ok( $proc->is_complete, "Complete" );
+is( $proc->exit_status, 0, "Exit clean" );
 
-$one = $CLASS->new( sub { sleep 100 } )->start;
+$proc = $CLASS->new( sub { sleep 100 } )->start;
 
-my $ret = eval { $one->say("XXX"); 1 };
+my $ret = eval { $proc->say("XXX"); 1 };
 ok( !$ret, "Died, no IPC" );
-like( $@, qr/No connection between parent and child./, "No IPC" );
-$one->kill(2);
+like( $@, qr/Child was created without IPC support./, "No IPC" );
+$proc->kill(2);
 
-$one = $CLASS->new( sub {
-    my $self = shift;
+$proc = $CLASS->new( sub {
+    my $parent = shift;
     $SIG{INT} = sub { exit( 2 ) };
-    $self->say( "go" );
+    $parent->say( "go" );
     sleep 100;
 }, socket => 1 )->start;
 
-$one->read;
+$proc->read;
 sleep 1;
-ok( $one->kill(2), "Send signal" );
-ok( !$one->wait, "wait" );
-ok( $one->is_complete, "Complete" );
-is( $one->exit_status, 2, "Exit 2" );
-ok( $one->unix_exit > 2, "Real exit" );
+ok( $proc->kill(2), "Send signal" );
+ok( !$proc->wait, "wait" );
+ok( $proc->is_complete, "Complete" );
+is( $proc->exit_status, 2, "Exit 2" );
+ok( $proc->unix_exit > 2, "Real exit" );
 
-$one = $CLASS->new( sub {
-    my $self = shift;
-    $self->autoflush(0);
-    $self->say( "A" );
-    $self->flush;
-    $self->say( "B" );
+$child = $CLASS->new( sub {
+    my $parent = shift;
+    $parent->autoflush(0);
+    $parent->say( "A" );
+    $parent->flush;
+    $parent->say( "B" );
     sleep 5;
-    $self->flush;
+    $parent->flush;
 }, socket => 1 );
 
-$one->start;
-is( $one->read(), "A\n", "A" );
+$proc = $child->start;
+is( $proc->read(), "A\n", "A" );
 my $start = time;
-is( $one->read(), "B\n", "B" );
+is( $proc->read(), "B\n", "B" );
 my $end = time;
 
 ok( $end - $start > 2, "No autoflush" );
 
-$one = $CLASS->new( sub {
-    my $self = shift;
-    $self->detach;
-    $self->say( $self->detached );
+$proc = $CLASS->new( sub {
+    my $parent = shift;
+    $parent->detach;
+    $parent->say( $parent->detached );
 }, socket => 1 )->start;
 
-is( $one->read(), $one->pid . "\n", "Child detached" );
+is( $proc->read(), $proc->pid . "\n", "Child detached" );
 
-$one = $CLASS->new( sub {
-    my $self = shift;
-    $self->say( "go" );
-    $self->read;
-    $self->say( $self->detached );
+$proc = $CLASS->new( sub {
+    my $parent = shift;
+    $parent->disconnect;
+    $parent->connect( 10 );
+    $parent->say( "Hi" );
 }, socket => 1 )->start;
 
-$one->read();
-$one->detach;
-sleep 1;
-$one->say("go");
+my $pid = $proc->pid;
+my $file = $proc->socket_file;
 
-is( $one->read(), $one->pid . "\n", "Child detached remotely" );
-
-$one = $CLASS->new( sub {
-    my $self = shift;
-    $self->say( "A" );
-    $self->disconnect();
-    $self->connect();
-    $self->say( "B" );
-}, socket => 1 );
-
-$one->start;
-is( $one->read(), "A\n", "First Message" );
-$one->disconnect();
-$ret = eval { $one->say("XXX"); 1 };
-ok( !$ret, "Died, disconnected" );
-like( $@, qr/No connection between parent and child./, "No Connection" );
-$one->connect(5);
-is( $one->read(), "B\n", "Second Message after disconnect and reconnect" );
-
-$one = $CLASS->new( sub {
-    my $self = shift;
-    $self->say( "A" );
-    $self->disconnect();
-    $self->connect();
-    $self->say( "B" );
-}, socket => 1 );
-
-$one->start;
-is( $one->read(), "A\n", "First Message" );
-my $file = $one->socket_file;
-$one->disconnect();
-$one->detach;
-
-$one = $CLASS->existing( $file );
-is( $one->read(), "B\n", "Second Message after connect using existing()" );
+$proc->disconnect;
+$proc = Child::IPC::Socket->child_class->new_from_file( $file );
+is( $proc->pid, $pid, "Connected" );
+is( $proc->read(), "Hi\n", "Communicating" );
 
 done_testing;

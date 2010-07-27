@@ -10,7 +10,7 @@ my $build = Module::Build->new(
     create_readme => 1,
     requires => {
         'POSIX'            => 0,
-        'Child'            => '0.006',
+        'Child'            => '0.007',
         'IO::Socket::UNIX' => 0,
     },
     build_requires => {
