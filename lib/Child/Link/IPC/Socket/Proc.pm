@@ -3,6 +3,7 @@ use strict;
 use warnings;
 
 use IO::Socket::UNIX;
+use Carp qw/croak/;
 
 use base qw/
     Child::Link::IPC::Socket

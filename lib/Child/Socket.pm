@@ -4,7 +4,7 @@ use warnings;
 
 use Child::IPC::Socket;
 
-our $VERSION = '0.002';
+our $VERSION = '0.003';
 
 use base 'Child';
 our @EXPORT_OK = qw/
